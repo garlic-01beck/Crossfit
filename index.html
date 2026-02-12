@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>1RM Percentage & Plate Calculator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0f172a;
+  --panel:#111827;
+  --panel-light:#1f2937;
+  --text:#e5e7eb;
+  --muted:#9ca3af;
+  --accent:#38bdf8;
+  --danger:#f87171;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  font-family:Inter,system-ui,Arial,sans-serif;
+  background:linear-gradient(180deg,#0b1224,#111827);
+  color:var(--text);
+  min-height:100vh;
+}
+main{padding:20px; max-width:1000px; margin:0 auto;}
+header h1{margin:0 0 8px; font-size:1.6rem;}
+header p{margin:0 0 16px; color:var(--muted);} 
+
+.grid{display:grid; grid-template-columns:1fr 1.1fr; gap:18px;}
+@media(max-width:900px){.grid{grid-template-columns:1fr;}}
+
+.card{background:var(--panel); border:1px solid #1f2937; border-radius:12px; padding:16px;}
+.card h2{margin:0 0 12px; font-size:1.1rem;}
+
+label{display:block; font-size:0.85rem; color:var(--muted); margin-bottom:6px;}
+input,select{width:100%; padding:10px; border-radius:8px; border:1px solid #374151; background:#0b1220; color:var(--text);} 
+input:focus,select:focus{outline:2px solid var(--accent); border-color:transparent;}
+
+.form-row{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+@media(max-width:700px){.form-row{grid-template-columns:1fr;}}
+
+.stat{display:flex; justify-content:space-between; margin-bottom:8px;}
+.stat span:last-child{font-weight:600;}
+.warning{color:var(--danger); font-size:0.9rem; margin-top:8px;}
+
+.plates{display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;}
+.plate-chip{padding:6px 10px; border-radius:999px; color:#0b1220; font-weight:600; font-size:0.85rem;}
+
+.stack{margin-top:10px; border:1px dashed #334155; padding:8px; border-radius:8px; background:#0b1220;}
+.stack-row{display:flex; align-items:center; gap:6px; margin:6px 0;}
+.bar{height:18px; border-radius:6px; min-width:20px;}
+.count{font-size:0.85rem; color:var(--muted);} 
+
+.legend{display:flex; flex-wrap:wrap; gap:8px;}
+.legend .plate-chip{color:#fff;}
+
+.footer-note{font-size:0.8rem; color:var(--muted);} 
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>1RM Percentage & Plate Calculator</h1>
+    <p>Calculate percentage targets and barbell plate loading per side.</p>
+  </header>
+
+  <div class="grid" aria-label="Calculator">
+    <section class="card" aria-label="Inputs">
+      <h2>Inputs</h2>
+      <div class="form-row">
+        <div>
+          <label for="oneRm">1RM (lbs)</label>
+          <input id="oneRm" type="number" min="0" step="1" value="200" />
+        </div>
+        <div>
+          <label for="barWeight">Bar Weight (lbs)</label>
+          <select id="barWeight" aria-label="Bar weight">
+            <option value="35">35 lb (Standard)</option>
+            <option value="45">45 lb</option>
+          </select>
+        </div>
+        <div style="grid-column:1 / -1;">
+          <label for="percentSelect">Select Percentage</label>
+          <select id="percentSelect"></select>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" aria-label="Selected Result">
+      <h2>Selected Target</h2>
+      <div class="stat"><span>Selected Percentage</span><span id="selPercent">—</span></div>
+      <div class="stat"><span>Exact Target</span><span id="exactTarget">—</span></div>
+      <div class="stat"><span>Rounded Target</span><span id="roundedTarget">—</span></div>
+      <div class="stat"><span>Per Side Load</span><span id="perSide">—</span></div>
+      <div id="warning" class="warning" role="alert"></div>
+
+      <h2 style="margin-top:16px;">Plate Breakdown (per side)</h2>
+      <div id="plateList" class="plates"></div>
+      <div id="stack" class="stack"></div>
+
+      <h2 style="margin-top:16px;">Color Legend</h2>
+      <div id="legend" class="legend"></div>
+      <p class="footer-note">Rounding to nearest 5 lb total (2.5 lb per side).</p>
+    </section>
+  </div>
+</main>
+
+<script>
+(function(){
+  const plateData = [
+    {w:55,color:'#7f1d1d',label:'55 lb'},
+    {w:45,color:'#2563eb',label:'45 lb'},
+    {w:35,color:'#facc15',label:'35 lb',text:'#0b1220'},
+    {w:25,color:'#22c55e',label:'25 lb'},
+    {w:15,color:'#6b7280',label:'15 lb'},
+    {w:10,color:'#f8fafc',label:'10 lb',text:'#0b1220'},
+    {w:5,color:'#3b82f6',label:'5 lb'},
+    {w:2.5,color:'#10b981',label:'2.5 lb'}
+  ];
+
+  const oneRmEl = document.getElementById('oneRm');
+  const barEl = document.getElementById('barWeight');
+  const percentSelect = document.getElementById('percentSelect');
+  const selPercent = document.getElementById('selPercent');
+  const exactTarget = document.getElementById('exactTarget');
+  const roundedTarget = document.getElementById('roundedTarget');
+  const perSide = document.getElementById('perSide');
+  const warning = document.getElementById('warning');
+  const plateList = document.getElementById('plateList');
+  const stack = document.getElementById('stack');
+  const legend = document.getElementById('legend');
+
+  function formatWeight(w){
+    return `${w.toFixed(1).replace(/\\.0$/,'')} lb`;
+  }
+
+  function roundToNearest5(w){
+    return Math.round(w/5)*5;
+  }
+
+  function buildPercentOptions(){
+    percentSelect.innerHTML='';
+    for(let p=5;p<=100;p+=5){
+      const opt=document.createElement('option');
+      opt.value=p;
+      opt.textContent=`${p}%`;
+      percentSelect.appendChild(opt);
+    }
+  }
+
+  function buildLegend(){
+    legend.innerHTML='';
+    plateData.forEach(p=>{
+      const chip=document.createElement('div');
+      chip.className='plate-chip';
+      chip.textContent=p.label;
+      chip.style.background=p.color;
+      if(p.text) chip.style.color=p.text;
+      legend.appendChild(chip);
+    });
+  }
+
+  function getInputs(){
+    const oneRm = parseFloat(oneRmEl.value);
+    const bar = parseFloat(barEl.value);
+    return {oneRm: isNaN(oneRm)?0:oneRm, bar: isNaN(bar)?35:bar};
+  }
+
+  function calcPlates(perSideLoad){
+    const plates=[];
+    let remaining=perSideLoad;
+    for(const p of plateData){
+      const count=Math.floor(remaining / p.w + 1e-9);
+      if(count>0){
+        plates.push({plate:p, count});
+        remaining -= count * p.w;
+      }
+    }
+    return {plates, remaining};
+  }
+
+  function renderPlates(plates){
+    plateList.innerHTML='';
+    stack.innerHTML='';
+    if(plates.length===0){
+      plateList.textContent='No plates needed.';
+      return;
+    }
+    plates.forEach(item=>{
+      const chip=document.createElement('div');
+      chip.className='plate-chip';
+      chip.textContent=`${item.plate.label} × ${item.count}`;
+      chip.style.background=item.plate.color;
+      if(item.plate.text) chip.style.color=item.plate.text;
+      plateList.appendChild(chip);
+
+      const row=document.createElement('div');
+      row.className='stack-row';
+      const bar=document.createElement('div');
+      bar.className='bar';
+      bar.style.background=item.plate.color;
+      bar.style.width=`${Math.max(30, item.plate.w*1.8)}px`;
+      if(item.plate.text) bar.style.color=item.plate.text;
+      const label=document.createElement('span');
+      label.className='count';
+      label.textContent=`${item.count} × ${item.plate.label}`;
+      row.appendChild(bar);
+      row.appendChild(label);
+      stack.appendChild(row);
+    });
+  }
+
+  function updateAll(){
+    const {oneRm, bar} = getInputs();
+    const percent = parseFloat(percentSelect.value);
+    const exact = oneRm * percent / 100;
+    const rounded = roundToNearest5(exact);
+    const load = rounded - bar;
+    warning.textContent='';
+
+    selPercent.textContent = `${percent}%`;
+    exactTarget.textContent = formatWeight(exact);
+    roundedTarget.textContent = formatWeight(rounded);
+
+    if(load < 0){
+      perSide.textContent = '—';
+      plateList.innerHTML='';
+      stack.innerHTML='';
+      warning.textContent = 'Target weight is below bar weight.';
+      return;
+    }
+
+    const per = load/2;
+    perSide.textContent = formatWeight(per);
+
+    const {plates, remaining} = calcPlates(per);
+    renderPlates(plates);
+    if(remaining > 0.01){
+      warning.textContent = `Cannot match exactly. Remainder: ${remaining.toFixed(2)} lb per side.`;
+    }
+  }
+
+  function init(){
+    buildPercentOptions();
+    buildLegend();
+    percentSelect.value = '70';
+    barEl.value = '35';
+    updateAll();
+  }
+
+  [oneRmEl, barEl, percentSelect].forEach(el=>{
+    el.addEventListener('input', updateAll);
+    el.addEventListener('change', updateAll);
+  });
+
+  init();
+})();
+</script>
+</body>
+</html>
