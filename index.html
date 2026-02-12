@@ -63,9 +63,6 @@ input:focus,select:focus{outline:2px solid rgba(37,99,235,0.2); border-color:var
 .bar{height:20px; border-radius:8px; min-width:24px;}
 .count{font-size:0.9rem; color:var(--muted);} 
 
-.legend{display:flex; flex-wrap:wrap; gap:8px;}
-.legend .plate-chip{color:#fff;}
-
 .footer-note{font-size:0.85rem; color:var(--muted); margin-top:8px;} 
 
 .sticky-results{position:static;}
@@ -138,8 +135,6 @@ input:focus,select:focus{outline:2px solid rgba(37,99,235,0.2); border-color:var
     <div id="plateList" class="plates"></div>
     <div id="stack" class="stack"></div>
 
-    <h2 style="margin-top:20px;">Color Legend</h2>
-    <div id="legend" class="legend"></div>
     <p class="footer-note">Rounding to nearest 5 lb total (2.5 lb per side).</p>
   </section>
 </main>
@@ -167,7 +162,6 @@ input:focus,select:focus{outline:2px solid rgba(37,99,235,0.2); border-color:var
   const warning = document.getElementById('warning');
   const plateList = document.getElementById('plateList');
   const stack = document.getElementById('stack');
-  const legend = document.getElementById('legend');
 
   function formatWeight(w){
     return `${w.toFixed(1).replace(/\.0$/,'')} lb`;
@@ -185,18 +179,6 @@ input:focus,select:focus{outline:2px solid rgba(37,99,235,0.2); border-color:var
       opt.textContent=`${p}%`;
       percentSelect.appendChild(opt);
     }
-  }
-
-  function buildLegend(){
-    legend.innerHTML='';
-    plateData.forEach(p=>{
-      const chip=document.createElement('div');
-      chip.className='plate-chip';
-      chip.textContent=p.label;
-      chip.style.background=p.color;
-      if(p.text) chip.style.color=p.text;
-      legend.appendChild(chip);
-    });
   }
 
   function getInputs(){
@@ -281,7 +263,6 @@ input:focus,select:focus{outline:2px solid rgba(37,99,235,0.2); border-color:var
 
   function init(){
     buildPercentOptions();
-    buildLegend();
     percentSelect.value = '70';
     barEl.value = '35';
     updateAll();
