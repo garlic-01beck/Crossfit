@@ -50,6 +50,58 @@ input:focus,select:focus{outline:2px solid rgba(37,99,235,0.2); border-color:var
 
 .form-row{display:grid; grid-template-columns:1fr; gap:16px;}
 
+.segmented{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+}
+.segmented input{
+  position:absolute;
+  opacity:0;
+  pointer-events:none;
+}
+.segmented label{
+  margin:0;
+  text-align:center;
+  padding:12px 10px;
+  border-radius:12px;
+  border:1px solid var(--border);
+  background:#f9fafb;
+  color:var(--text);
+  font-weight:600;
+  cursor:pointer;
+  transition:all 0.2s ease;
+}
+.segmented input:checked + label{
+  border-color:var(--accent);
+  background:rgba(37,99,235,0.08);
+  color:var(--accent);
+}
+
+.checkbox-grid{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0,1fr));
+  gap:10px;
+}
+.checkbox-item{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 12px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:#f9fafb;
+}
+.checkbox-item input{
+  width:18px;
+  height:18px;
+  margin:0;
+}
+.checkbox-item span{
+  font-weight:600;
+  font-size:0.95rem;
+}
+
 .stat{display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px dashed #edf2f7;}
 .stat:last-of-type{border-bottom:none;}
 .stat span:last-child{font-weight:600;}
@@ -73,6 +125,7 @@ input:focus,select:focus{outline:2px solid rgba(37,99,235,0.2); border-color:var
   .section{padding:20px;}
   .form-row{grid-template-columns:1fr 1fr;}
   .form-row .full{grid-column:1 / -1;}
+  .checkbox-grid{grid-template-columns:repeat(4, minmax(0,1fr));}
 }
 
 @media(max-width:719px){
@@ -120,6 +173,19 @@ input:focus,select:focus{outline:2px solid rgba(37,99,235,0.2); border-color:var
         <label for="percentSelect">Select Percentage</label>
         <select id="percentSelect"></select>
       </div>
+      <div class="full">
+        <label>Plate Availability</label>
+        <div class="segmented" role="radiogroup" aria-label="Plate availability">
+          <input type="radio" id="modeGym" name="plateMode" value="gym" checked>
+          <label for="modeGym">Gym</label>
+          <input type="radio" id="modeHome" name="plateMode" value="home">
+          <label for="modeHome">Home</label>
+        </div>
+      </div>
+      <div id="homePlates" class="full" hidden>
+        <label>Select Plates You Have</label>
+        <div class="checkbox-grid" id="plateCheckboxes"></div>
+      </div>
     </div>
   </section>
 
@@ -162,9 +228,13 @@ input:focus,select:focus{outline:2px solid rgba(37,99,235,0.2); border-color:var
   const warning = document.getElementById('warning');
   const plateList = document.getElementById('plateList');
   const stack = document.getElementById('stack');
+  const modeGym = document.getElementById('modeGym');
+  const modeHome = document.getElementById('modeHome');
+  const homePlates = document.getElementById('homePlates');
+  const plateCheckboxes = document.getElementById('plateCheckboxes');
 
   function formatWeight(w){
-    return `${w.toFixed(1).replace(/\.0$/,'')} lb`;
+    return `${w.toFixed(1).replace(/\\.0$/,'')} lb`;
   }
 
   function roundToNearest5(w){
@@ -181,16 +251,53 @@ input:focus,select:focus{outline:2px solid rgba(37,99,235,0.2); border-color:var
     }
   }
 
+  function buildPlateCheckboxes(){
+    plateCheckboxes.innerHTML='';
+    plateData.forEach((plate)=>{
+      const id = `plate-${plate.w}`.replace('.','-');
+      const wrapper = document.createElement('label');
+      wrapper.className = 'checkbox-item';
+      wrapper.setAttribute('for', id);
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.id = id;
+      checkbox.value = plate.w;
+      checkbox.checked = true;
+      checkbox.addEventListener('change', updateAll);
+
+      const text = document.createElement('span');
+      text.textContent = plate.label;
+
+      wrapper.appendChild(checkbox);
+      wrapper.appendChild(text);
+      plateCheckboxes.appendChild(wrapper);
+    });
+  }
+
   function getInputs(){
     const oneRm = parseFloat(oneRmEl.value);
     const bar = parseFloat(barEl.value);
     return {oneRm: isNaN(oneRm)?0:oneRm, bar: isNaN(bar)?35:bar};
   }
 
-  function calcPlates(perSideLoad){
+  function getAvailablePlates(){
+    if(modeGym.checked){
+      return plateData;
+    }
+    const selected = new Set();
+    plateCheckboxes.querySelectorAll('input[type="checkbox"]').forEach(cb=>{
+      if(cb.checked){
+        selected.add(parseFloat(cb.value));
+      }
+    });
+    return plateData.filter(p=>selected.has(p.w));
+  }
+
+  function calcPlates(perSideLoad, availablePlates){
     const plates=[];
     let remaining=perSideLoad;
-    for(const p of plateData){
+    for(const p of availablePlates){
       const count=Math.floor(remaining / p.w + 1e-9);
       if(count>0){
         plates.push({plate:p, count});
@@ -231,6 +338,10 @@ input:focus,select:focus{outline:2px solid rgba(37,99,235,0.2); border-color:var
     });
   }
 
+  function updateModeUI(){
+    homePlates.hidden = !modeHome.checked;
+  }
+
   function updateAll(){
     const {oneRm, bar} = getInputs();
     const percent = parseFloat(percentSelect.value);
@@ -254,7 +365,8 @@ input:focus,select:focus{outline:2px solid rgba(37,99,235,0.2); border-color:var
     const per = load/2;
     perSide.textContent = formatWeight(per);
 
-    const {plates, remaining} = calcPlates(per);
+    const availablePlates = getAvailablePlates();
+    const {plates, remaining} = calcPlates(per, availablePlates);
     renderPlates(plates);
     if(remaining > 0.01){
       warning.textContent = `Cannot match exactly. Remainder: ${remaining.toFixed(2)} lb per side.`;
@@ -263,14 +375,22 @@ input:focus,select:focus{outline:2px solid rgba(37,99,235,0.2); border-color:var
 
   function init(){
     buildPercentOptions();
+    buildPlateCheckboxes();
     percentSelect.value = '70';
     barEl.value = '35';
+    updateModeUI();
     updateAll();
   }
 
-  [oneRmEl, barEl, percentSelect].forEach(el=>{
-    el.addEventListener('input', updateAll);
-    el.addEventListener('change', updateAll);
+  [oneRmEl, barEl, percentSelect, modeGym, modeHome].forEach(el=>{
+    el.addEventListener('input', () => {
+      updateModeUI();
+      updateAll();
+    });
+    el.addEventListener('change', () => {
+      updateModeUI();
+      updateAll();
+    });
   });
 
   init();
